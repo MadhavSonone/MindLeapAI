@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #ffffff;
+  --color-fg: #000000;
+  --color-border: #e5e5e5;
+  --color-muted: #737373;
+  
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Newsreader", "Georgia", serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-bold tracking-tight uppercase;
+  }
+
+  /* Elegant Serif for study content */
+  .prose-academic {
+    @apply font-serif text-lg leading-relaxed;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 3px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutral-200 hover:bg-black;
+  }
+}
+
+@layer components {
+  .panel-border {
+    @apply border-neutral-100;
+  }
+
+  .nav-link {
+    @apply text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400 hover:text-black transition-all py-2 flex items-center gap-3;
+  }
+
+  .nav-link-active {
+    @apply text-black;
+  }
+
+  .glass-card {
+    @apply border border-neutral-100 bg-white/80 backdrop-blur-sm;
+  }
+  
+  /* Minimalist Button */
+  .btn-minimal {
+    @apply px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-black transition-all hover:bg-black hover:text-white disabled:opacity-30;
+  }
+}

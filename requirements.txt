@@ -1,0 +1,10 @@
+sqlalchemy
+fastapi 
+uvicorn 
+pydantic
+python-dotenv
+rapidfuzz
+requests
+langchain-groq
+pydantic-settings
+langgraph
