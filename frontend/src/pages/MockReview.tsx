@@ -10,6 +10,7 @@ interface MockAttempt {
   total_questions: number;
   timestamp: string;
   report_json: string;
+  review_text: string;
 }
 
 const MockReview = () => {
@@ -61,7 +62,7 @@ const MockReview = () => {
             <ChevronLeft size={16} />
           </button>
           <div>
-            <span className="text-[10px] font-black uppercase bg-black text-white px-2 py-1 mb-2 block w-fit">JEE MAINS </span>
+            <span className="text-[10px] font-black uppercase bg-black text-white px-2 py-1 mb-2 block w-fit">Exam</span>
             <h1 className="text-4xl font-black uppercase tracking-tighter">Attempt Reviews.</h1>
           </div>
         </div>
@@ -149,7 +150,7 @@ const MockReview = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-2xl font-black">{Math.round(accuracy)}%</span>
+                        <span className="text-2xl font-black">{Math.round(accuracy) || 0}%</span>
                         <div className="w-32 h-1 bg-neutral-50 mt-2 overflow-hidden">
                           <div
                             className="h-full bg-black transition-all duration-1000"
@@ -168,9 +169,9 @@ const MockReview = () => {
                   <Award size={14} />
                   <span className="text-[10px] font-black uppercase tracking-widest">Performance Analyst Insight</span>
                 </div>
-                <p className="text-sm leading-relaxed italic text-neutral-600">
-                  "Based on this simulation, your retention in mathematical logic is superior. However, the conceptual depth in organic mechanisms shows a significant gap. Strategy agent has prioritized these modules in your next 7-day plan."
-                </p>
+                <div className="text-sm leading-relaxed text-neutral-600 whitespace-pre-wrap italic">
+                  {selectedAttempt.review_text || "The Performance Analyst is still calculating your qualitative review. Check back in a few moments."}
+                </div>
               </div>
 
             </div>

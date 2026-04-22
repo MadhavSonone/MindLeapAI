@@ -11,3 +11,10 @@ langgraph
 passlib 
 python-jose[cryptography]
 bcrypt
+faiss-cpu 
+langchain
+sentence-transformers 
+langchain-huggingface 
+langchain-community
+pypdf
+langchain-text-splitters

@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useUserStore } from '../store/useStore';
+import { useUserStore, useMockStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Loader2, Zap, Shield } from 'lucide-react';
 import axios from 'axios';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const { setToken, setUserId, setUserName, setIsOnboarded } = useUserStore();
+  const { setToken, setUserId, setUserName, setIsOnboarded, setOnboardingData } = useUserStore();
+  const resetMock = useMockStore(state => state.reset);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,10 +25,14 @@ const Auth = () => {
 
     try {
       const res = await axios.post(url, formData);
+      resetMock();
       setToken(res.data.token);
       setUserId(res.data.user_id);
-      setUserName(res.data.email.split('@')[0]); 
+      setUserName(res.data.email.split('@')[0]);
       setIsOnboarded(res.data.is_onboarded);
+      if (res.data.preferences) {
+        setOnboardingData(res.data.preferences);
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || "Authentication Failed.");
     } finally {

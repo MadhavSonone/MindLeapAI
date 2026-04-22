@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, PenTool, LogOut, Zap, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, BookOpen, PenTool, LogOut, Zap, BarChart2, Database } from 'lucide-react';
 import { useUserStore } from '../store/useStore';
 
 const Sidebar = () => {
@@ -51,6 +51,13 @@ const Sidebar = () => {
             >
               <BarChart2 size={14} />
               Previous Attempts
+            </NavLink>
+            <NavLink
+              to="/vault"
+              className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''}`}
+            >
+              <Database size={14} />
+              The Vault
             </NavLink>
           </div>
         </div>

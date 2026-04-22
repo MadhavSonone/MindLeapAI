@@ -2,6 +2,7 @@ from langchain_groq import ChatGroq
 from sqlalchemy.orm import Session
 from db import models
 from config import settings
+from services.rag_service import rag_service
 import json
 
 class TutorAgent:
@@ -70,7 +71,32 @@ class TutorAgent:
             self.db.commit()
             
             return explanation_summary
-
         except Exception as e:
             print(f"Tutor: Error explaining question: {e}")
-            return "Sorry, I encountered an error while trying to explain this question."
+            return "Error explaining question."
+
+    def chat_vault(self, user_id: int, query: str):
+        """Answers queries based on the user's custom context using RAG."""
+        print(f"Tutor: Answering Vault query for User {user_id} using RAG...")
+        
+        # Fetch context from RAG store
+        context = rag_service.query(user_id, query)
+
+        prompt = f"""
+        CONTEXT FROM YOUR VAULT DOCUMENTS:
+        {context if context else "No specific documents found in vault related to this query."}
+        
+        USER QUERY: {query}
+        
+        CRITICAL INSTRUCTION:
+        1. If relevant information is in the CONTEXT above, PRIORITIZE it over general knowledge.
+        2. If you are using general knowledge because context is missing, explicitly state: "Based on general academic patterns (not found in your vault)..."
+        3. Keep the explanation concise and exam-focused.
+        """
+        
+        try:
+            response = self.llm.invoke(prompt)
+            return response.content
+        except Exception as e:
+            print(f"Tutor: Error in Vault chat: {e}")
+            return "Error processing vault query."

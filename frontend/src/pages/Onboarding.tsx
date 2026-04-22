@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useUserStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Loader2, Zap } from 'lucide-react';
+import { ArrowRight, Loader2, Zap, Shield, X } from 'lucide-react';
 import axios from 'axios';
 
 const Onboarding = () => {
@@ -10,8 +10,13 @@ const Onboarding = () => {
 
   const [formData, setFormData] = useState({
     name: '',
-    targetExam: 'JEE Mains',
-    goalDate: '2025-04-01',
+    targetExam: 'JEE Main',
+    customExamName: '',
+    syllabusText: '',
+    pyqText: '',
+    syllabusFile: null as File | null,
+    pyqFile: null as File | null,
+    goalDate: '2026-03-01',
     dailyHours: 4,
   });
 
@@ -20,8 +25,8 @@ const Onboarding = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (step === 4) {
-      axios.get('http://localhost:8000/subjects').then(async res => {
+    if (step === 4 && formData.targetExam !== 'Custom') {
+      axios.get(`http://localhost:8000/subjects?exam_name=${formData.targetExam}`).then(async res => {
         const subs = res.data;
         const allChapters: any[] = [];
         for (const sub of subs) {
@@ -41,24 +46,32 @@ const Onboarding = () => {
   const handleFinish = async () => {
     setLoading(true);
     try {
+      const examName = formData.targetExam === 'Custom' ? formData.customExamName : formData.targetExam;
       setUserName(formData.name);
       setOnboardingData({
-        targetExam: formData.targetExam,
+        targetExam: examName,
         goalDate: formData.goalDate,
         dailyHours: formData.dailyHours,
       });
 
-      await axios.post(`http://localhost:8000/agents/strategy/initialize`, {
-        user_id: userId,
-        goalDate: formData.goalDate,
-        dailyHours: formData.dailyHours,
-        targetExam: formData.targetExam,
-        completedChapters: completedChapters
+      const fData = new FormData();
+      fData.append("user_id", userId.toString());
+      fData.append("goalDate", formData.goalDate);
+      fData.append("dailyHours", formData.dailyHours.toString());
+      fData.append("targetExam", examName);
+      fData.append("completedChapters", JSON.stringify(completedChapters));
+      fData.append("customSyllabus", formData.syllabusText);
+      fData.append("customPyqs", formData.pyqText);
+      if (formData.syllabusFile) fData.append("syllabusFile", formData.syllabusFile);
+      if (formData.pyqFile) fData.append("pyqFile", formData.pyqFile);
+
+      await axios.post(`http://localhost:8000/agents/strategy/initialize`, fData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       completeOnboarding();
     } catch (error) {
-      console.error("Failed to initialize strategy:", error);
+      console.error("Onboarding failed:", error);
       completeOnboarding();
     } finally {
       setLoading(false);
@@ -101,13 +114,101 @@ const Onboarding = () => {
                 <h1 className="text-4xl font-black uppercase tracking-tighter mt-2 leading-none">Target & Window.</h1>
               </div>
               <div className="space-y-6">
-                <select className="w-full p-4 border border-black text-sm font-bold" value={formData.targetExam} onChange={(e) => setFormData({ ...formData, targetExam: e.target.value })}>
-                  <option>JEE Mains</option>
+                <select className="w-full p-4 border border-black text-sm font-bold outline-none" value={formData.targetExam} onChange={(e) => setFormData({ ...formData, targetExam: e.target.value })}>
+                  <option>JEE Main</option>
+                  <option>Aptitude Test</option>
+                  {/* <option>NEET</option> */}
+                  {/* <option>UPSC</option> */}
+                  <option>Custom</option>
                 </select>
-                <input type="date" className="w-full p-4 border border-black text-sm font-bold" value={formData.goalDate} onChange={(e) => setFormData({ ...formData, goalDate: e.target.value })} />
+                {formData.targetExam === 'Custom' && (
+                  <input
+                    className="w-full p-4 border border-black text-sm font-bold outline-none"
+                    placeholder="ENTER CUSTOM EXAM NAME"
+                    value={formData.customExamName}
+                    onChange={(e) => setFormData({ ...formData, customExamName: e.target.value })}
+                  />
+                )}
+                <input type="date" className="w-full p-4 border border-black text-sm font-bold outline-none" value={formData.goalDate} onChange={(e) => setFormData({ ...formData, goalDate: e.target.value })} />
               </div>
-              <button onClick={handleNext} className="btn-minimal w-full flex items-center justify-between">
+              <button onClick={() => {
+                if (formData.targetExam === 'Custom') setStep(2.5); // Special sub-step
+                else setStep(3);
+              }} className="btn-minimal w-full flex items-center justify-between">
                 Lock Parameters <ArrowRight size={14} />
+              </button>
+            </motion.div>
+          )}
+
+          {step === 2.5 && (
+            <motion.div key="step2.5" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8 max-h-[80vh] flex flex-col">
+              <div className="shrink-0">
+                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-300">CONTEXT_FEED</span>
+                <h1 className="text-4xl font-black uppercase tracking-tighter mt-2 leading-none">Syllabus & PYQs.</h1>
+              </div>
+              <div className="space-y-6 flex-1 overflow-y-auto scroll-area pr-4">
+                <div className="space-y-4">
+                  <label className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">Syllabus Context</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <textarea
+                      className="p-4 border border-neutral-100 text-xs font-bold outline-none min-h-[120px] focus:border-black transition-colors col-span-2 md:col-span-1"
+                      placeholder="Paste syllabus text..."
+                      value={formData.syllabusText}
+                      onChange={(e) => setFormData({ ...formData, syllabusText: e.target.value })}
+                    />
+                    <div className="border-2 border-dashed border-neutral-100 p-4 flex flex-col items-center justify-center text-center group hover:border-black transition-all cursor-pointer relative">
+                      <Zap size={24} className="text-neutral-200 group-hover:text-black mb-2" />
+                      <span className="text-[8px] font-black uppercase text-neutral-300 group-hover:text-black">Upload Syllabus PDF</span>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={(e) => setFormData({ ...formData, syllabusFile: e.target.files?.[0] || null })}
+                      />
+                      {formData.syllabusFile && (
+                        <div className="flex items-center gap-2 mt-2 bg-neutral-50 px-2 py-1 rounded">
+                          <span className="text-[8px] font-bold text-black underline truncate max-w-[150px]">{formData.syllabusFile.name}</span>
+                          <button onClick={(e) => { e.stopPropagation(); setFormData({ ...formData, syllabusFile: null }); }} className="text-neutral-400 hover:text-black">
+                            <X size={10} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">PYQ Patterns</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <textarea
+                      className="p-4 border border-neutral-100 text-xs font-bold outline-none min-h-[120px] focus:border-black transition-colors col-span-2 md:col-span-1"
+                      placeholder="Paste sample questions..."
+                      value={formData.pyqText}
+                      onChange={(e) => setFormData({ ...formData, pyqText: e.target.value })}
+                    />
+                    <div className="border-2 border-dashed border-neutral-100 p-4 flex flex-col items-center justify-center text-center group hover:border-black transition-all cursor-pointer relative">
+                      <Shield size={24} className="text-neutral-200 group-hover:text-black mb-2" />
+                      <span className="text-[8px] font-black uppercase text-neutral-300 group-hover:text-black">Upload PYQ PDF</span>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={(e) => setFormData({ ...formData, pyqFile: e.target.files?.[0] || null })}
+                      />
+                      {formData.pyqFile && (
+                        <div className="flex items-center gap-2 mt-2 bg-neutral-50 px-2 py-1 rounded">
+                          <span className="text-[8px] font-bold text-black underline truncate max-w-[150px]">{formData.pyqFile.name}</span>
+                          <button onClick={(e) => { e.stopPropagation(); setFormData({ ...formData, pyqFile: null }); }} className="text-neutral-400 hover:text-black">
+                            <X size={10} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setStep(3)} className="btn-minimal w-full flex items-center justify-between shrink-0">
+                Analyze Context <ArrowRight size={14} />
               </button>
             </motion.div>
           )}

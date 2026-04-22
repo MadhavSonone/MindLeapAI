@@ -1,0 +1,60 @@
+question,option_a,option_b,option_c,option_d,answer,topic
+Question,Option A,Option B,Option C,Option D,Answer,Data Structures
+A goods train runs at the speed of 72 kmph and crosses a 250 m long platform in 26 seconds. What is the length of the goods train?,230 m,240 m,260 m,270 m,D,Speed and Distance
+An error of 2% in excess is made while measuring the side of a square. The percentage of error in the calculated area of the square is:,2%,2.02%,4%,4.04%,D,Geometry
+What is the volume of a cube? I. The area of each face of the cube is 64 square metres. II. The length of one side of the cube is 8 metres.,I alone sufficient while II alone not sufficient,II alone sufficient while I alone not sufficient,Either I or II alone sufficient to answer,Both I and II are not sufficient,C,Geometry
+The reflex angle between the hands of a clock at 10:25 is:,180º,192.5º,195º,197.5º,D,Trigonometry
+At what time between 4 and 5 o'clock will the hands of a watch point in opposite directions?,45 min past 4,40 min past 4,50.4 min past 4,54.6 min past 4,D,Time-Based Reasoning
+A 12% stock yielding 10% is quoted at:,Rs. 83.33,Rs. 110,Rs. 112,Rs. 120,D,Stock Market Pricing
+In how many different ways can the letters of the word 'DETAIL' be arranged in such a way that the vowels occupy only the odd positions?,32,48,36,60,C,Data Structures
+An observer 1.6 m tall is 203 m away from a tower. The angle of elevation from his eye to the top of the tower is 30º. The height of the tower is:,21.6 m,23.2 m,24.72 m,None of these,A,Trigonometry
+The average weight of 8 persons increases by 2.5 kg when a new person comes in place of one of them weighing 65 kg. What might be the weight of the new person?,76 kg,76.5 kg,85 kg,Data inadequate,C,Data Interpretation
+The difference between a two-digit number and the number obtained by interchanging the digits is 36. What is the difference between the sum and the difference of the digits of the number if the ratio between the digits of the number is 1:2?,4,8,16,None of these,B,Number Patterns
+What is the capacity of a cylindrical tank? I. Radius of the base is half of its height which is 28 metres. II. Area of the base is 616 sq. metres and its height is 28 metres.,I alone sufficient while II alone not sufficient,II alone sufficient while I alone not sufficient,Either I or II alone sufficient to answer,Both I and II are not sufficient,C,Data Interpretation
+A 6% stock yields 8%. The market value of the stock is:,Rs. 48,Rs. 75,Rs. 96,Rs. 133.33,B,Stock Market Pricing
+Two trains running in opposite directions cross a man standing on the platform in 27 seconds and 17 seconds respectively and they cross each other in 23 seconds. The ratio of their speeds is:,1:3,3:2,3:4,None of these,B,Speed and Distance
+The value of log2 16 is:,1/8,4,8,16,B,Logarithms
+The square root of 64009 is:,253,347,363,803,A,Logarithms
+What should come in place of both 'x' in the equation x/128 = 162/x?,12,14,144,196,A,Algebra
+The value of 489.1375 × 0.0483 × 1.956 is closest to:,0.006,0.06,0.6,6,B,Multiplication
+Which of the following fractions is the largest?,7/8,13/16,31/40,63/80,A,Number Series
+An accurate clock shows 8 o'clock in the morning. Through how many degrees will the hour hand rotate when the clock shows 2 o'clock in the afternoon?,144º,150º,168º,180º,D,Trigonometry
+A dishonest milkman professes to sell his milk at cost price but he mixes it with water and thereby gains 25%. The percentage of water in the mixture is:,4%,6%,20%,25%,C,Percentage of water in the mixture.
+A flagstaff 17.5 m high casts a shadow 40.25 m long. What is the height of a building that casts a shadow 28.75 m long under similar conditions?,10 m,12.5 m,17.5 m,21.25 m,B,Trigonometry
+The reflex angle between the hands of a clock at 10:25 is:,180º,192 ½º,195º,197 ½º,D,Trigonometry
+A train of 240 meters long passes a pole in 24 seconds. How long will it take to pass a platform 650 meters long?,65 sec,89 sec,100 sec,150 sec,B,Time-Based Reasoning
+How many seconds will a 500-meter-long train take to cross a man walking with a speed of 3 km/hr in the direction of the moving train if the speed of the train is 63 km/hr?,25 sec,30 sec,40 sec,45 sec,B,Relative Motion
+A boatman goes 2 km against the current of the stream in 1 hour and goes 1 km along the current in 10 minutes. How long will it take to go 5 km in stationary water?,40 minutes,1 hour,1 hr 15 min,1 hr 30 min,C,Time-Based Reasoning
+One ship goes along the stream direction 28 km and in opposite direction 13 km in 5 hrs for each direction. What is the velocity of the stream?,1.5 kmph,2.5 kmph,1.8 kmph,2 kmph,A,Relative Motion
+Which one of the words given below is different from others?,Orange,Grape,Apricot,Raspberry,C,Data Structures
+How much time will the leak take to empty the full cistern? (I. The cistern is normally filled in 9 hours. II. It takes one hour more than usual to fill the cistern because of the leak.),I alone sufficient,II alone sufficient,Either I or II alone,Both I and II are necessary,D,Time Complexity
+The reflex angle between the hands of a clock at 10:25 is:,180º,192.5º,195º,197.5º,D,Trigonometry
+An error of 2% in excess is made while measuring the side of a square. The percentage of error in the calculated area is:,2%,2.02%,4%,4.04%,D,Area Calculations
+The slant height of a right circular cone is 10 m and its height is 8 m. Find the area of its curved surface:,30 m²,40 m²,60 m²,80 m²,C,Geometry
+A flagstaff 17.5 m high casts a shadow 40.25 m long. What is the height of a building that casts a shadow 28.75 m long under similar conditions?,10 m,12.5 m,17.5 m,21.25 m,B,Trigonometry
+The reflex angle between the hands of a clock at 10:25 is:,180º,192.5º,195º,197.5º,D,Trigonometry
+A train of 240 meters long passes a pole in 24 seconds. How long will it take to pass a platform 650 meters long?,65 sec,89 sec,100 sec,150 sec,B,Time-Based Reasoning
+How many seconds will a 500-meter-long train take to cross a man walking with a speed of 3 km/hr in the direction of the moving train if the speed of the train is 63 km/hr?,25 sec,30 sec,40 sec,45 sec,B,Relative Motion
+A boatman goes 2 km against the current of the stream in 1 hour and goes 1 km along the current in 10 minutes. How long will it take to go 5 km in stationary water?,40 minutes,1 hour,1 hr 15 min,1 hr 30 min,C,Time-Based Reasoning
+An error of 2% in excess is made while measuring the side of a square. The percentage of error in the calculated area is:,2%,2.02%,4%,4.04%,D,Area Calculations
+The slant height of a right circular cone is 10 m and its height is 8 m. Find the area of its curved surface:,30 m²,40 m²,60 m²,80 m²,C,Geometry
+In how many different ways can the letters of the word 'DETAIL' be arranged in such a way that the vowels occupy only the odd positions?,32,48,36,60,C,Data Structures
+Two dice are tossed. The probability that the total score is a prime number is:,1,5/12,1/2,7/9,B,Probability
+An observer 1.6 m tall is 203 m away from a tower. The angle of elevation from his eye to the top of the tower is 30º. The height of the tower is:,21.6 m,23.2 m,24.72 m,None of these,A,Trigonometry
+A man took a loan from a bank at the rate of 8% p.a. simple interest. After 4 years he had to pay Rs. 6200 as interest only for the period. The principal amount borrowed by him was:,Rs. 17322,Rs. 20245,Rs. 18230,Rs. 19375,C,Simple Interest
+The sum of ages of 5 children born at intervals of 3 years each is 50 years. What is the age of the youngest child?,4 years,8 years,10 years,None of these,A,Age-Related Reasoning
+"A father said to his son, ""I was as old as you are at the present at the time of your birth"". If the father's age is 38 years now, the son's age five years back was:",14 years,19 years,33 years,38 years,A,Algebra
+A man can swim downstream at 6 km/hr and upstream at 2 km/hr. His speed in still water is:,4 km/hr,2 km/hr,6 km/hr,1 km/hr,A,Speed in still water
+A man rows to a place 48 km distant and comes back in 14 hours. He finds that he can row 4 km with the stream in the same time as 3 km against the stream. The rate of the stream is:,1 km/hr,1.5 km/hr,2 km/hr,2.5 km/hr,A,Time Complexity
+In what ratio must a grocer mix two varieties of pulses costing Rs. 15 and Rs. 20 per kg respectively so as to get a mixture worth Rs. 16.50 per kg?,3:7,5:7,7:3,7:5,C,Ratio
+Two trains are running at 40 km/hr and 20 km/hr respectively in the same direction. The fast train completely passes a man sitting in the slower train in 5 seconds. What is the length of the fast train?,23 m,27 m,29 m,50 m,B,Relative Motion
+A train moves past a telegraph post and a bridge 264 m long in 8 seconds and 20 seconds respectively. What is the speed of the train?,69.5 km/hr,70 km/hr,79 km/hr,79.2 km/hr,D,Speed and Distance
+How many seconds will a 500-meter long train take to cross a man walking with a speed of 3 km/hr in the direction of the moving train if the speed of the train is 63 km/hr?,25,30,40,45,B,Relative Motion
+The sum of ages of 5 children born at intervals of 3 years each is 50 years. What is the age of the youngest child?,4 years,8 years,10 years,None of these,A,Age-Related Reasoning
+An error of 2% in excess is made while measuring the side of a square. The percentage of error in the calculated area is:,2%,2.02%,4%,4.04%,D,Area Calculations
+The reflex angle between the hands of a clock at 10:25 is:,180º,192.5º,195º,197.5º,D,Trigonometry
+Two goods trains each 500 m long are running in opposite directions on parallel tracks at 45 km/hr and 30 km/hr respectively. The time taken by the slower train to pass the driver of the faster one is:,12 sec,24 sec,48 sec,60 sec,B,Relative Motion
+A boatman goes 2 km against the current of the stream in 1 hour and goes 1 km along the current in 10 minutes. How long will it take to go 5 km in stationary water?,40 minutes,1 hour,1 hr 15 min,1 hr 30 min,C,Time-Based Reasoning
+What is the volume of a 32-meter high cylindrical tank?,4928 m³,4820 m³,5040 m³,4600 m³,A,Volume Problems
+The slant height of a right circular cone is 10 m and its height is 8 m. Find the area of its curved surface:,30 m²,40 m²,60 m²,80 m²,C,Geometry
+The banker's discount of a certain sum of money is Rs. 72 and the true discount on the same sum for the same time is Rs. 60. The sum due is:,Rs. 360,Rs. 432,Rs. 540,Rs. 1080,A,Simple Interest

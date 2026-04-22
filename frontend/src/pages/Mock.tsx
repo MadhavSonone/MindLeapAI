@@ -29,6 +29,7 @@ const Mock = () => {
   const [loadingQuestions, setLoadingQuestions] = useState(isActive && questions.length === 0);
   const [error, setError] = useState<string | null>(null);
   const [finalScore, setFinalScore] = useState<{ score: number; total: number } | null>(null);
+  const [timeSpent, setTimeSpent] = useState<Record<number, number>>({});
 
   // Load Questions
   useEffect(() => {
@@ -37,7 +38,7 @@ const Mock = () => {
       setError(null);
       const url = mockType === 'unit' && chapterId
         ? `http://localhost:8000/mock/generate/unit/${chapterId}`
-        : `http://localhost:8000/mock/generate`;
+        : `http://localhost:8000/mock/generate?user_id=${userId}`;
 
       axios.get(url)
         .then(res => {
@@ -60,7 +61,8 @@ const Mock = () => {
     setIsSubmitting(true);
     axios.post('http://localhost:8000/mock/submit', {
       user_id: userId,
-      answers: answers
+      answers: answers,
+      time_spent: timeSpent
     }).then(res => {
       setFinalScore({ score: res.data.score, total: res.data.total });
       setIsSubmitting(false);
@@ -72,12 +74,21 @@ const Mock = () => {
   useEffect(() => {
     let timer: any;
     if (isActive && timeLeft > 0) {
-      timer = setInterval(() => decrementTime(), 1000);
+      timer = setInterval(() => {
+        decrementTime();
+        if (questions[currentQuestionIndex]) {
+          const qId = questions[currentQuestionIndex].id;
+          setTimeSpent(prev => ({
+            ...prev,
+            [qId]: (prev[qId] || 0) + 1
+          }));
+        }
+      }, 1000);
     } else if (isActive && timeLeft === 0) {
       handleAutoSubmit();
     }
     return () => clearInterval(timer);
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, currentQuestionIndex, questions]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -91,7 +102,7 @@ const Mock = () => {
         <div className="max-w-xl w-full p-12 bg-white border border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] text-center">
           <Clock className="mx-auto mb-6" size={48} />
           <h1 className="text-3xl font-black uppercase tracking-tighter mb-4">Mock Test.</h1>
-          <p className="text-sm text-neutral-400 mb-8 uppercase tracking-widest font-medium">Complete Syllabus | 180 Minutes</p>
+          <p className="text-sm text-neutral-400 mb-8 uppercase tracking-widest font-medium">Complete Syllabus | 30 Minutes</p>
           <ul className="text-left space-y-3 mb-10 text-xs font-bold uppercase text-neutral-500">
             <li className="flex items-center gap-3"><div className="w-1 h-1 bg-black" /> Attempt this test with your full concentration.</li>
             <li className="flex items-center gap-3"><div className="w-1 h-1 bg-black" /> Try to finish this test in one go</li>
@@ -105,7 +116,7 @@ const Mock = () => {
               Attempt History
             </button>
             <button
-              onClick={() => startTest(180)}
+              onClick={() => startTest(30)}
               className="flex-1 bg-black text-white py-4 text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all"
             >
               Start New Test
@@ -221,7 +232,7 @@ const Mock = () => {
                   try {
                     const opts = JSON.parse(questions[currentQuestionIndex].options_json || '[]');
                     const hasAnswer = answers[questions[currentQuestionIndex].id];
-                    
+
                     return (
                       <>
                         {opts.map((opt: string, idx: number) => (
@@ -235,7 +246,7 @@ const Mock = () => {
                           </button>
                         ))}
                         {hasAnswer && (
-                          <button 
+                          <button
                             onClick={() => setAnswer(questions[currentQuestionIndex].id, '')}
                             className="text-[9px] font-black uppercase text-neutral-300 hover:text-black transition-colors mt-2 text-left w-fit"
                           >
@@ -254,16 +265,40 @@ const Mock = () => {
         </div>
 
         <div className="w-80 border-l border-black p-8 bg-neutral-50 overflow-y-auto">
-          <h3 className="text-[10px] font-black uppercase mb-8 tracking-widest">Questions</h3>
-          <div className="grid grid-cols-4 gap-2">
-            {questions.map((q, i) => (
-              <button
-                key={q.id}
-                onClick={() => setIndex(i)}
-                className={`aspect-square text-[10px] font-black border flex items-center justify-center transition-all ${currentQuestionIndex === i ? 'border-black bg-black text-white' : answers[q.id] ? 'border-black' : 'border-neutral-200 text-neutral-300'}`}
-              >
-                {i + 1}
-              </button>
+          <h3 className="text-[10px] font-black uppercase mb-8 tracking-widest">
+            Questions
+          </h3>
+          <div className="space-y-8">
+            {Object.entries(
+              questions.reduce((acc, q, idx) => {
+                const chapter = q.chapter_name || "General";
+                if (!acc[chapter]) acc[chapter] = [];
+                acc[chapter].push({ ...q, globalIndex: idx });
+                return acc;
+              }, {} as Record<string, any[]>)
+            ).map(([chapter, qs]) => (
+              <div key={chapter}>
+                <span className="text-[8px] font-black uppercase text-neutral-400 block mb-3 tracking-widest">
+                  {chapter}
+                </span>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {qs.map((q, localIndex) => (
+                    <button
+                      key={q.id}
+                      onClick={() => setIndex(q.globalIndex)}
+                      className={`aspect-square text-[10px] font-black border flex items-center justify-center transition-all ${currentQuestionIndex === q.globalIndex
+                        ? "border-black bg-black text-white"
+                        : answers[q.id]
+                          ? "border-black"
+                          : "border-neutral-200 text-neutral-300"
+                        }`}
+                    >
+                      {localIndex + 1}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import cast, String, Date
 from typing import List
@@ -9,10 +9,10 @@ from db import models
 import schemas
 from orchestrator import SignalService
 from agents.performance_analyst import PerformanceAnalyst
-from agents.strategy_agent import StrategyAgent
 from agents.tutor_agent import TutorAgent
-from agents.practice_agent import PracticeAgent
 from agents.discipline_coach import DisciplineCoach
+from graphs.strategy_graph import strategy_graph
+from services.rag_service import rag_service
 from fastapi.middleware.cors import CORSMiddleware
 import json
 from jose import JWTError, jwt
@@ -84,8 +84,22 @@ def login(body: dict, db: Session = Depends(get_db)):
     user_prefs = db.query(models.UserPreferences).filter(models.UserPreferences.user_id == user.id).first()
     is_onboarded = user_prefs is not None
     
+    prefs_data = {}
+    if user_prefs:
+        prefs_data = {
+            "goalDate": user_prefs.goal_date,
+            "dailyHours": user_prefs.daily_availability_hours,
+            "targetExam": user_prefs.target_exam
+        }
+    
     token = create_access_token({"sub": str(user.id)})
-    return {"token": token, "user_id": user.id, "email": user.email, "is_onboarded": is_onboarded}
+    return {
+        "token": token, 
+        "user_id": user.id, 
+        "email": user.email, 
+        "is_onboarded": is_onboarded,
+        "preferences": prefs_data
+    }
 
 # --- Orchestration Helpers ---
 
@@ -99,14 +113,10 @@ def run_orchestrator(user_id: int, db: Session):
         print(f"Orchestrator: Processing signal {signal.signal_type}...")
         
         if signal.signal_type == "WEAK_TOPIC_DETECTED":
-            # Analyst detected a weakness -> Trigger Strategy to adjust plan
-            import json
-            payload = json.loads(signal.payload)
-            strategy = StrategyAgent(db)
-            strategy.respond_to_weakness(user_id, payload['chapter_id'], payload['accuracy'])
+            # In the new flow, the planning graph or a feedback agent will handle this
+            print(f"Orchestrator: Weakness detected. Signal processed.")
             
         elif signal.signal_type == "PLAN_UPDATED":
-            # Just a log signal for now
             pass
             
         SignalService.mark_signal_processed(db, signal.id)
@@ -149,46 +159,196 @@ def submit_progress(progress: schemas.UserProgressCreate, background_tasks: Back
     
     return {"status": "accepted", "message": "Progress recorded and agents triggered."}
 
+async def run_onboarding_pipeline(user_id: int, syllabus_info: dict, pyq_info: dict, state: dict):
+    """
+    Sequentially processes RAG ingestion then triggers the Strategy Graph.
+    This ensures documents are available for the RAG node in the graph.
+    """
+    print(f"PIPELINE: Starting onboarding for user {user_id}")
+    
+    # 1. Process Syllabus
+    if syllabus_info:
+        try:
+            rag_service.ingest_document(user_id, 0, syllabus_info['filename'], syllabus_info['content'], doc_type="syllabus")
+        except Exception as e:
+            print(f"PIPELINE: Syllabus ingestion failed: {e}")
+
+    # 2. Process PYQs
+    if pyq_info:
+        try:
+            rag_service.ingest_document(user_id, 0, pyq_info['filename'], pyq_info['content'], doc_type="pyq")
+        except Exception as e:
+            print(f"PIPELINE: PYQ ingestion failed: {e}")
+
+    # 3. Trigger Strategy Graph
+    print(f"PIPELINE: Triggering Strategy Graph for user {user_id}")
+    try:
+        strategy_graph.invoke(state)
+    except Exception as e:
+        print(f"PIPELINE: Strategy Graph failed: {e}")
+
 # --- Agent Specialized Endpoints ---
 
 @app.post("/agents/strategy/initialize")
-def initialize_strategy(body: dict, db: Session = Depends(get_db)):
-    user_id = body.get("user_id")
-    goal_date = body.get("goalDate")
-    daily_hours = body.get("dailyHours")
-    target_exam = body.get("targetExam")
-    completed_chapters = body.get("completedChapters", []) # List of chapter IDs
+async def initialize_strategy(
+    background_tasks: BackgroundTasks,
+    user_id: int = Form(...),
+    goalDate: str = Form(...),
+    dailyHours: int = Form(...),
+    targetExam: str = Form(...),
+    completedChapters: str = Form("[]"), # JSON string
+    customSyllabus: str = Form(None),
+    customPyqs: str = Form(None),
+    syllabusFile: UploadFile = File(None),
+    pyqFile: UploadFile = File(None),
+    db: Session = Depends(get_db)
+):
+    exam_type = "CUSTOM" if targetExam == "Custom" else "STANDARD"
+    chapters_list = json.loads(completedChapters)
     
     # Ensure user preferences exist
     pref = db.query(models.UserPreferences).filter(models.UserPreferences.user_id == user_id).first()
     if not pref:
         pref = models.UserPreferences(
             user_id=user_id, 
-            goal_date=goal_date,
-            daily_availability_hours=daily_hours,
-            target_exam=target_exam,
-            completed_chapters=json.dumps(completed_chapters)
+            goal_date=goalDate,
+            daily_availability_hours=dailyHours,
+            target_exam=targetExam,
+            completed_chapters=json.dumps(chapters_list),
+            exam_type=exam_type,
+            custom_syllabus=customSyllabus,
+            custom_pyqs=customPyqs
         )
         db.add(pref)
     else:
-        pref.goal_date = goal_date
-        pref.daily_availability_hours = daily_hours
-        pref.target_exam = target_exam
-        pref.completed_chapters = json.dumps(completed_chapters)
+        pref.goal_date = goalDate
+        pref.daily_availability_hours = dailyHours
+        pref.target_exam = targetExam
+        pref.completed_chapters = json.dumps(chapters_list)
+        pref.exam_type = exam_type
+        pref.custom_syllabus = customSyllabus
+        pref.custom_pyqs = customPyqs
     
     db.commit()
     
-    strategy = StrategyAgent(db)
-    strategy.generate_initial_plan(user_id)
-    return {"status": "success", "message": "Initial study plan generated."}
+    # 3. Prepare Pipeline Data
+    s_info = None
+    if syllabusFile:
+        s_content = await syllabusFile.read()
+        s_info = {"filename": syllabusFile.filename, "content": s_content}
+        # Add to DB
+        doc = models.UserDocument(user_id=user_id, file_name=syllabusFile.filename, file_type="syllabus", file_content=s_content)
+        db.add(doc)
+    
+    p_info = None
+    if pyqFile:
+        p_content = await pyqFile.read()
+        p_info = {"filename": pyqFile.filename, "content": p_content}
+        # Add to DB
+        doc = models.UserDocument(user_id=user_id, file_name=pyqFile.filename, file_type="pyq", file_content=p_content)
+        db.add(doc)
+    
+    db.commit()
+
+    # 4. Trigger Sequential Pipeline
+    pref = db.query(models.UserPreferences).filter(models.UserPreferences.user_id == user_id).first()
+    all_chapters = db.query(models.Chapter).join(models.Subject).join(models.Exam).filter(models.Exam.name == targetExam).all()
+    pending_chapters = [c.name for c in all_chapters if c.id not in chapters_list]
+
+    state = {
+        "user_id": user_id,
+        "target_exam": targetExam,
+        "goal_date": goalDate,
+        "availability": dailyHours,
+        "completed_chapters": [db.query(models.Chapter).filter(models.Chapter.id == cid).first().name for cid in chapters_list if db.query(models.Chapter).filter(models.Chapter.id == cid).first()],
+        "pending_chapters": pending_chapters,
+        "rag_context": "",
+        "monthly_roadmap": {},
+        "weekly_tasks": []
+    }
+    
+    background_tasks.add_task(run_onboarding_pipeline, user_id, s_info, p_info, state)
+    
+    return {"status": "success", "message": "Onboarding pipeline (RAG + Planning) initiated."}
 
 @app.post("/agents/strategy/recalibrate")
-def recalibrate_strategy(body: dict, db: Session = Depends(get_db)):
+def recalibrate_strategy(body: dict, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user_id = body.get("user_id")
-    strategy = StrategyAgent(db)
-    # This will re-generate the 7-day plan based on current mastery and prefs
-    strategy.generate_initial_plan(user_id)
-    return {"status": "success", "message": "Strategy recalibrated."}
+    
+    # 1. Clear existing future/pending tasks to prevent stacking
+    today = datetime.date.today().isoformat()
+    db.query(models.StudyPlanTask).filter(
+        models.StudyPlanTask.user_id == user_id,
+        models.StudyPlanTask.target_date >= today,
+        models.StudyPlanTask.is_completed == False
+    ).delete()
+    db.commit()
+    
+    # 2. Collect current state
+    pref = db.query(models.UserPreferences).filter(models.UserPreferences.user_id == user_id).first()
+    if not pref: return {"error": "No preferences"}
+    
+    completed_ids = json.loads(pref.completed_chapters or "[]")
+    all_chapters = db.query(models.Chapter).join(models.Subject).join(models.Exam).filter(models.Exam.name == pref.target_exam).all()
+    pending_chapters = [c.name for c in all_chapters if c.id not in completed_ids]
+
+    state = {
+        "user_id": user_id,
+        "target_exam": pref.target_exam,
+        "goal_date": pref.goal_date,
+        "availability": pref.daily_availability_hours,
+        "completed_chapters": [db.query(models.Chapter).filter(models.Chapter.id == cid).first().name for cid in completed_ids if db.query(models.Chapter).filter(models.Chapter.id == cid).first()],
+        "pending_chapters": pending_chapters,
+        "rag_context": "",
+        "monthly_roadmap": {},
+        "weekly_tasks": []
+    }
+    
+    background_tasks.add_task(strategy_graph.invoke, state)
+    return {"status": "success", "message": "Recalibration graph initiated."}
+
+@app.post("/tasks/{task_id}/toggle")
+def toggle_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.StudyPlanTask).filter(models.StudyPlanTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task.is_completed = not task.is_completed
+    db.commit()
+    return {"status": "success", "is_completed": task.is_completed}
+
+@app.get("/stats/activity/{user_id}")
+def get_activity_stats(user_id: int, db: Session = Depends(get_db)):
+    # Simple activity score: count of completed tasks or mocks per day for last 30 days
+    today = datetime.date.today()
+    thirty_days_ago = (today - datetime.timedelta(days=30)).isoformat()
+    
+    # Get completed tasks
+    tasks = db.query(models.StudyPlanTask.target_date).filter(
+        models.StudyPlanTask.user_id == user_id,
+        models.StudyPlanTask.is_completed == True,
+        models.StudyPlanTask.target_date >= thirty_days_ago
+    ).all()
+    
+    # Get mock attempts
+    mocks = db.query(models.MockAttempt.timestamp).filter(
+        models.MockAttempt.user_id == user_id,
+        models.MockAttempt.timestamp >= thirty_days_ago
+    ).all()
+    
+    # Merge dates
+    activity_dates = [t.target_date for t in tasks]
+    # 3. Include Task Completion
+    tasks = db.query(models.StudyPlanTask.target_date).filter(
+        models.StudyPlanTask.user_id == user_id,
+        models.StudyPlanTask.is_completed == True
+    ).all()
+    activity_dates += [t[0] for t in tasks]
+    
+    # Count occurrences
+    from collections import Counter
+    counts = Counter(activity_dates)
+    
+    return [{"date": k, "count": v} for k, v in counts.items()]
 
 @app.get("/agents/performance/heatmap", response_model=List[schemas.ChapterMastery])
 def get_performance_heatmap(user_id: int, db: Session = Depends(get_db)):
@@ -201,11 +361,77 @@ def get_explanation(question_id: int, user_id: int, level: str = "beginner", db:
     explanation = tutor.explain_question(question_id, user_id, level)
     return {"explanation": explanation}
 
-@app.get("/agents/coach/nudge")
-def get_daily_nudge(user_id: int, db: Session = Depends(get_db)):
-    coach = DisciplineCoach(db)
-    nudge = coach.generate_daily_nudge(user_id)
-    return {"nudge": nudge}
+@app.post("/agents/tutor/vault/chat")
+def vault_chat(body: dict, db: Session = Depends(get_db)):
+    user_id = body.get("user_id")
+    query = body.get("query")
+    tutor = TutorAgent(db)
+    response = tutor.chat_vault(user_id, query)
+    return {"response": response}
+
+@app.get("/user/preferences/{user_id}")
+def get_user_prefs(user_id: int, db: Session = Depends(get_db)):
+    pref = db.query(models.UserPreferences).filter(models.UserPreferences.user_id == user_id).first()
+    if not pref: return {}
+    
+    docs = db.query(models.UserDocument).filter(models.UserDocument.user_id == user_id).all()
+    doc_list = [{"id": d.id, "name": d.file_name, "type": d.file_type, "status": d.processing_status} for d in docs]
+    
+    return {
+        "custom_syllabus": pref.custom_syllabus,
+        "custom_pyqs": pref.custom_pyqs,
+        "target_exam": pref.target_exam,
+        "documents": doc_list
+    }
+
+@app.delete("/vault/document/{doc_id}")
+def delete_vault_document(doc_id: int, db: Session = Depends(get_db)):
+    doc = db.query(models.UserDocument).filter(models.UserDocument.id == doc_id).first()
+    if doc:
+        db.delete(doc)
+        db.commit()
+    return {"status": "success"}
+
+@app.post("/vault/upload")
+async def upload_vault_document(
+    background_tasks: BackgroundTasks,
+    user_id: int = Form(...),
+    file_type: str = Form(...), # syllabus, pyq, notes
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    content = await file.read()
+    doc = models.UserDocument(
+        user_id=user_id,
+        file_name=file.filename,
+        file_type=file_type,
+        file_content=content
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    
+    background_tasks.add_task(rag_service.ingest_document, user_id, doc.id, file.filename, content, doc_type=file_type)
+    
+    return {"status": "success", "file_name": file.filename}
+
+@app.post("/user/preferences/update")
+def update_user_prefs(body: dict, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    user_id = body.get("user_id")
+    pref = db.query(models.UserPreferences).filter(models.UserPreferences.user_id == user_id).first()
+    if pref:
+        if "custom_syllabus" in body:
+            pref.custom_syllabus = body["custom_syllabus"]
+            if body["custom_syllabus"].strip():
+                background_tasks.add_task(rag_service.ingest_document, user_id, -1, "custom_syllabus.txt", body["custom_syllabus"].encode(), doc_type="syllabus")
+        
+        if "custom_pyqs" in body:
+            pref.custom_pyqs = body["custom_pyqs"]
+            if body["custom_pyqs"].strip():
+                background_tasks.add_task(rag_service.ingest_document, user_id, -2, "custom_pyqs.txt", body["custom_pyqs"].encode(), doc_type="pyq")
+        
+        db.commit()
+    return {"status": "success"}
 
 @app.get("/agents/map")
 def get_agent_map():
@@ -218,9 +444,12 @@ def get_agent_map():
         return {"error": str(e)}
 
 @app.get("/subjects")
-def get_subjects(db: Session = Depends(get_db)):
-    subjects = db.query(models.Subject.id, models.Subject.name).all()
-    return [{"id": s[0], "name": s[1]} for s in subjects]
+def get_subjects(exam_name: str = None, db: Session = Depends(get_db)):
+    query = db.query(models.Subject)
+    if exam_name:
+        query = query.join(models.Exam).filter(models.Exam.name == exam_name)
+    subjects = query.all()
+    return [{"id": s.id, "name": s.name} for s in subjects]
 
 @app.get("/subjects/{subjectId}/chapters")
 def get_chapters(subjectId: int, db: Session = Depends(get_db)):
@@ -264,44 +493,85 @@ def get_weekly_plan(user_id: int, db: Session = Depends(get_db)):
     today = datetime.date.today()
     week_later = today + datetime.timedelta(days=7)
     
-    tasks = db.query(models.StudyPlanTask).filter(
+    tasks = db.query(
+        models.StudyPlanTask.id,
+        models.StudyPlanTask.chapter_id,
+        models.StudyPlanTask.task_type,
+        models.StudyPlanTask.target_date,
+        models.StudyPlanTask.estimated_minutes,
+        models.StudyPlanTask.concepts,
+        models.StudyPlanTask.is_completed,
+        models.StudyPlanTask.priority,
+        models.Chapter.name.label("chapter_name")
+    ).join(models.Chapter).filter(
         models.StudyPlanTask.user_id == user_id,
         models.StudyPlanTask.target_date >= today.isoformat(),
         models.StudyPlanTask.target_date <= week_later.isoformat()
     ).order_by(models.StudyPlanTask.target_date, models.StudyPlanTask.priority.desc()).all()
     
-    return tasks
+    return [dict(t._mapping) for t in tasks]
+
+@app.get("/dashboard/insight/{user_id}")
+def get_dashboard_insight(user_id: int, db: Session = Depends(get_db)):
+    from agents.discipline_coach import DisciplineCoach
+    coach = DisciplineCoach(db)
+    insight = coach.generate_adherence_report(user_id)
+    return {"insight": insight}
 
 @app.post("/agents/practice/schedule-mock")
 def schedule_mock(body: dict, db: Session = Depends(get_db)):
     user_id = body.get("user_id")
     chapter_id = body.get("chapter_id")
+    target_date = body.get("target_date")
     
-    # Schedule for tomorrow
-    tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+    # Schedule for selected date or tomorrow
+    if not target_date:
+        target_date = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+        
+    # Enforce maximum 1 mock per day
+    existing_mock = db.query(models.StudyPlanTask).filter(
+        models.StudyPlanTask.user_id == user_id,
+        models.StudyPlanTask.target_date == target_date,
+        models.StudyPlanTask.task_type == "MOCK"
+    ).first()
     
+    if existing_mock:
+        return {"status": "error", "message": f"A mock test is already scheduled for {target_date}."}
+    
+
     new_task = models.StudyPlanTask(
         user_id=user_id,
         chapter_id=chapter_id,
         task_type="MOCK",
-        target_date=tomorrow,
+        target_date=target_date,
         priority=3, # High priority for mocks
         is_completed=False
     )
     db.add(new_task)
     db.commit()
-    return {"status": "success", "message": f"Unit mock scheduled for {tomorrow}"}
+    return {"status": "success", "message": f"Unit mock scheduled for {target_date}"}
+    
 @app.get("/stats/streak/{user_id}")
 def get_user_streak(user_id: int, db: Session = Depends(get_db)):
-    # Calculate streak based on consecutive days in UserProgress
-    
-    # Get all distinct dates user has progress
-    dates = db.query(
-        cast(models.UserProgress.timestamp, String) # Assuming timestamp is ISO format
+    # 1. Get dates from UserProgress (Mock tests/questions)
+    progress_dates = db.query(
+        cast(models.UserProgress.timestamp, String)
     ).filter(models.UserProgress.user_id == user_id).distinct().all()
     
-    # Simple logic: extract date part and count consecutive
-    active_dates = sorted(list(set([d[0].split('T')[0] for d in dates])), reverse=True)
+    # 2. Get dates from completed StudyPlanTasks
+    task_dates = db.query(models.StudyPlanTask.target_date).filter(
+        models.StudyPlanTask.user_id == user_id,
+        models.StudyPlanTask.is_completed == True
+    ).all()
+    
+    # 3. Combine and deduplicate
+    all_dates_list = []
+    for d in progress_dates:
+        if d[0]: all_dates_list.append(d[0].split('T')[0])
+    for t in task_dates:
+        if t[0]: all_dates_list.append(t[0])
+        
+    active_dates = sorted(list(set(all_dates_list)), reverse=True)
     
     if not active_dates:
         return {"streak": 0}
@@ -309,7 +579,7 @@ def get_user_streak(user_id: int, db: Session = Depends(get_db)):
     streak = 0
     current_check = datetime.date.today()
     
-    # If today is not active, check if yesterday was (to allow for today's ongoing streak)
+    # Check if today or yesterday is the start of the streak
     if active_dates[0] != current_check.isoformat():
         current_check -= datetime.timedelta(days=1)
         if active_dates[0] != current_check.isoformat():
@@ -325,24 +595,60 @@ def get_user_streak(user_id: int, db: Session = Depends(get_db)):
     return {"streak": streak}
 
 @app.get("/mock/generate")
-def generate_mock_test(db: Session = Depends(get_db)):
-    # Balanced Full Mock: Try to get 10 questions per subject if possible
+def generate_mock_test(user_id: int, db: Session = Depends(get_db)):
     import random
-    subjects = db.query(models.Subject).all()
+    
+    pref = db.query(models.UserPreferences).filter(models.UserPreferences.user_id == user_id).first()
+    target_exam = pref.target_exam if pref else "JEE Main"
+
+    # Get all chapters for the exam
+    all_chapters = db.query(models.Chapter).join(models.Subject).join(models.Exam).filter(models.Exam.name == target_exam).all()
+    if not all_chapters:
+        return []
+
+    TOTAL_TARGET = 20
+    
+    # 1. Preliminary target per chapter
+    temp_target = max(1, TOTAL_TARGET // len(all_chapters))
+    
+    # 2. Filter chapters that have enough questions
+    valid_chapters = []
+    for ch in all_chapters:
+        count = db.query(models.Question).filter(models.Question.chapter_id == ch.id).count()
+        if count >= temp_target:
+            valid_chapters.append(ch)
+    
+    # Fallback: If no chapters meet the quota, lower requirement to at least 1 question
+    if not valid_chapters:
+        for ch in all_chapters:
+            count = db.query(models.Question).filter(models.Question.chapter_id == ch.id).count()
+            if count >= 1:
+                valid_chapters.append(ch)
+    
+    if not valid_chapters:
+        return []
+
+    # 3. Final target per chapter based on valid set
+    per_chapter_target = TOTAL_TARGET // len(valid_chapters)
+    if per_chapter_target == 0: per_chapter_target = 1
+    
     mock_questions = []
     
-    for sub in subjects:
-        sub_questions = db.query(models.Question).join(models.Chapter).filter(models.Chapter.subject_id == sub.id).all()
-        if len(sub_questions) >= 10:
-            mock_questions.extend(random.sample(sub_questions, 10))
-        else:
-            mock_questions.extend(sub_questions)
-            
-    # Fallback if too few questions
-    if len(mock_questions) < 15:
-        all_q = db.query(models.Question).all()
-        return random.sample(all_q, min(len(all_q), 15))
+    for ch in valid_chapters:
+        ch_questions = db.query(
+            models.Question.id,
+            models.Question.content,
+            models.Question.options_json,
+            models.Chapter.name.label("chapter_name"),
+            models.Subject.name.label("subject_name")
+        ).select_from(models.Question).join(models.Chapter).join(models.Subject).filter(models.Question.chapter_id == ch.id).all()
         
+        # Sample exactly per_chapter_target OR all available if less
+        count_to_sample = min(len(ch_questions), per_chapter_target)
+        if count_to_sample > 0:
+            sampled = random.sample(ch_questions, count_to_sample)
+            mock_questions.extend([dict(q._mapping) for q in sampled])
+            
     random.shuffle(mock_questions)
     return mock_questions
 
@@ -350,15 +656,22 @@ def generate_mock_test(db: Session = Depends(get_db)):
 def generate_unit_test(chapter_id: int, db: Session = Depends(get_db)):
     # Focused Practice: 15 questions from a single chapter
     import random
-    questions = db.query(models.Question).filter(models.Question.chapter_id == chapter_id).all()
+    questions = db.query(
+        models.Question.id,
+        models.Question.content,
+        models.Question.options_json,
+        models.Chapter.name.label("chapter_name")
+    ).select_from(models.Question).join(models.Chapter).filter(models.Question.chapter_id == chapter_id).all()
+    
     if len(questions) < 15:
-        return questions
-    return random.sample(questions, 15)
+        return [dict(q._mapping) for q in questions]
+    return [dict(q._mapping) for q in random.sample(questions, 15)]
 
 @app.post("/mock/submit")
 def submit_mock_test(body: dict, db: Session = Depends(get_db)):
     user_id = body.get("user_id")
     answers = body.get("answers") # { question_id: answer_content }
+    time_spent = body.get("time_spent", {}) # { question_id: seconds }
     
     score = 0
     total = len(answers)
@@ -368,19 +681,39 @@ def submit_mock_test(body: dict, db: Session = Depends(get_db)):
         question = db.query(models.Question).filter(models.Question.id == int(q_id)).first()
         if not question: continue
         
+        is_correct = False
+        if question.correct_answer:
+            is_correct = user_ans.strip().lower() == question.correct_answer.strip().lower()
+        
+        # Record Progress
+        db_progress = models.UserProgress(
+            user_id=user_id,
+            question_id=int(q_id),
+            status="correct" if is_correct else "incorrect",
+            timestamp=datetime.datetime.now().isoformat()
+        )
+        db.add(db_progress)
+
         chapter_name = question.chapter.name if question.chapter else "General"
         if chapter_name not in report:
-            report[chapter_name] = {"correct": 0, "total": 0}
+            report[chapter_name] = {"correct": 0, "total": 0, "time": 0}
         
         report[chapter_name]["total"] += 1
+        report[chapter_name]["time"] += time_spent.get(str(q_id), 0)
         
-        # Check correctness using the new correct_answer field
-        if question.correct_answer and question.correct_answer == user_ans:
+        if is_correct:
             score += 1
             report[chapter_name]["correct"] += 1
 
     # Format report for DB
-    final_report = {k: (v["correct"] / v["total"]) * 100 for k, v in report.items()}
+    final_report = {k: {
+        "accuracy": (v["correct"] / v["total"]) * 100,
+        "avg_time": v["time"] / v["total"] if v["total"] > 0 else 0
+    } for k, v in report.items()}
+    
+    # Generate Detailed AI Review
+    analyst = PerformanceAnalyst(db)
+    review_text = analyst.generate_detailed_review(user_id, final_report)
     
     import json
     attempt = models.MockAttempt(
@@ -389,9 +722,26 @@ def submit_mock_test(body: dict, db: Session = Depends(get_db)):
         total_questions=total,
         report_json=json.dumps(final_report),
         answers_json=json.dumps(answers),
+        time_spent_json=json.dumps(time_spent),
+        review_text=review_text,
         timestamp=datetime.datetime.now().isoformat()
     )
     db.add(attempt)
+    
+    # Auto-complete related tasks for today
+    today = datetime.date.today().isoformat()
+    for chapter_name in report.keys():
+        db_chapter = db.query(models.Chapter).filter(models.Chapter.name == chapter_name).first()
+        if db_chapter:
+            pending_task = db.query(models.StudyPlanTask).filter(
+                models.StudyPlanTask.user_id == user_id,
+                models.StudyPlanTask.chapter_id == db_chapter.id,
+                models.StudyPlanTask.target_date == today,
+                models.StudyPlanTask.is_completed == False
+            ).first()
+            if pending_task:
+                pending_task.is_completed = True
+                
     db.commit()
     
     return {"status": "success", "attempt_id": attempt.id, "score": score, "total": total}
@@ -412,6 +762,7 @@ def get_mock_report(attempt_id: int, db: Session = Depends(get_db)):
         "score": attempt.score,
         "total": attempt.total_questions,
         "timestamp": attempt.timestamp,
-        "report": json.loads(attempt.report_json)
+        "report": json.loads(attempt.report_json),
+        "review": attempt.review_text
     }
         

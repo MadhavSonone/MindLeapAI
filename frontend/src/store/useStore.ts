@@ -36,14 +36,14 @@ export const useUserStore = create<UserState>()(
       setIsOnboarded: (val) => set({ isOnboarded: val }),
       setOnboardingData: (data) => set({ ...data }),
       completeOnboarding: () => set({ isOnboarded: true }),
-      logout: () => set({ 
+      logout: () => set({
         userId: 0,
-        userName: "Aspirant", 
-        targetExam: "", 
-        goalDate: "", 
-        dailyHours: 0, 
+        userName: "Aspirant",
+        targetExam: "",
+        goalDate: "",
+        dailyHours: 0,
         isOnboarded: false,
-        token: "" 
+        token: ""
       }),
     }),
     {
@@ -67,6 +67,7 @@ interface MockTestState {
   setIndex: (index: number) => void;
   setQuestions: (questions: any[]) => void;
   decrementTime: () => void;
+  reset: () => void;
 }
 
 export const useMockStore = create<MockTestState>()(
@@ -95,6 +96,14 @@ export const useMockStore = create<MockTestState>()(
       setIndex: (index) => set({ currentQuestionIndex: index }),
       setQuestions: (qs) => set({ questions: qs }),
       decrementTime: () => set((state) => ({ timeLeft: Math.max(0, state.timeLeft - 1) })),
+      reset: () => set({
+        isActive: false,
+        timeLeft: 0,
+        currentQuestionIndex: 0,
+        answers: {},
+        mockType: 'full',
+        questions: []
+      }),
     }),
     {
       name: 'mindleap-mock-storage',

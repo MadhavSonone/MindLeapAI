@@ -13,40 +13,46 @@ class DisciplineCoach:
             model_name="llama-3.1-8b-instant"
         )
 
-    def generate_daily_nudge(self, user_id: int):
-        """Generates a daily nudge based on study plan adherence."""
-        print(f"Coach: Generating daily nudge for User {user_id}...")
+    def generate_adherence_report(self, user_id: int):
+        """Analyzes 7-day adherence and provides a status report."""
+        print(f"Coach: Analyzing adherence for User {user_id}...")
         
-        # Check today's tasks
-        today = datetime.date.today().isoformat()
+        # Check last 7 days
+        today = datetime.date.today()
+        seven_days_ago = (today - datetime.timedelta(days=7)).isoformat()
+        
         tasks = self.db.query(models.StudyPlanTask).filter(
             models.StudyPlanTask.user_id == user_id,
-            models.StudyPlanTask.target_date == today
+            models.StudyPlanTask.target_date >= seven_days_ago,
+            models.StudyPlanTask.target_date <= today.isoformat()
         ).all()
 
         total = len(tasks)
         completed = len([t for t in tasks if t.is_completed])
+        rate = (completed / total * 100) if total > 0 else 0
 
         prompt = f"""
-        You are a JEE Discipline Coach. 
-        Today's Tasks: {total}
+        You are a Exam Discipline Coach. 
+        Recent Plan Adherence (Last 7 Days):
+        Total Tasks: {total}
         Completed: {completed}
+        Adherence Rate: {rate:.1f}%
         
-        Provide a short (2-sentence) motivational nudge for the student.
-        If they are behind, be firm but encouraging.
-        If they are on track, celebrate their consistency.
+        Provide a 2-sentence analytical report on the student's consistency.
+        Mention their 'Momentum Status' (e.g. CRITICAL, STABLE, or ELITE).
+        Give one specific advice based on the data.
         """
         
         try:
             response = self.llm.invoke(prompt)
-            nudge = response.content
+            report = response.content
             
             # Log in interaction
             interaction = models.AgentInteraction(
                 user_id=user_id,
                 agent_role="Coach",
-                input_query="Daily Nudge",
-                output_response=nudge,
+                input_query="Adherence Report",
+                output_response=report,
                 timestamp=datetime.datetime.now().isoformat()
             )
             self.db.add(interaction)

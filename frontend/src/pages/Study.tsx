@@ -3,12 +3,13 @@ import axios from 'axios';
 import { InlineMath } from 'react-katex';
 import {
   BookOpen, ChevronRight, Zap, MessageSquare,
-  ChevronLeft, History, Play, Calendar, Trophy
+  ChevronLeft, History, Play, Calendar, Trophy, Database
 } from 'lucide-react';
 import { Button } from '../components/ui';
 import * as Accordion from '@radix-ui/react-accordion';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useUserStore, useMockStore } from '../store/useStore';
+import { useNavigate } from 'react-router-dom';
 
 // --- Types ---
 interface Subject { id: number; name: string; }
@@ -18,6 +19,7 @@ interface ChapterStats { chapter_id: number; name: string; total: number; solved
 
 const Study = () => {
   const { startTest } = useMockStore();
+  const { userId, targetExam } = useUserStore();
   const [view, setView] = useState<'selection' | 'workspace'>('selection');
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -28,17 +30,22 @@ const Study = () => {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [tutorResponse, setTutorResponse] = useState<string | null>(null);
   const [loadingTutor, setLoadingTutor] = useState(false);
+  const navigate = useNavigate();
 
   // 1. Load Initial Data
   useEffect(() => {
-    axios.get(`http://localhost:8000/subjects`).then(res => setSubjects(res.data));
-    axios.get(`http://localhost:8000/stats/progress/1`).then(res => setChapterStats(res.data));
-  }, []);
-
-  // 2. Load Chapters when a subject is expanded (implied by stats mapping)
-  useEffect(() => {
-    axios.get(`http://localhost:8000/subjects/1/chapters`).then(res => setChapters(res.data));
-  }, []);
+    if (!targetExam) return;
+    axios.get(`http://localhost:8000/subjects?exam_name=${targetExam}`).then(res => {
+      setSubjects(res.data);
+      // Fetch chapters for all these subjects
+      const chapterPromises = res.data.map((sub: Subject) => axios.get(`http://localhost:8000/subjects/${sub.id}/chapters`));
+      Promise.all(chapterPromises).then(results => {
+        const allChapters = results.flatMap(r => r.data);
+        setChapters(allChapters);
+      });
+    });
+    axios.get(`http://localhost:8000/stats/progress/${userId}`).then(res => setChapterStats(res.data));
+  }, [userId, targetExam]);
 
   const startPractice = (chapterId: number) => {
     // Start a 15-minute Unit Mock for the selected chapter
@@ -73,67 +80,83 @@ const Study = () => {
         <div className="flex-1 scroll-area">
           <div className="p-12 max-w-5xl">
             <Accordion.Root type="multiple" className="space-y-6">
-              {subjects.map(subject => (
-                <Accordion.Item key={subject.id} value={subject.name} className="border-b border-neutral-100 pb-6">
-                  <Accordion.Trigger className="w-full flex justify-between items-center py-4 group">
-                    <span className="text-xl font-black uppercase tracking-tight group-data-[state=open]:text-black text-neutral-300 transition-colors">
-                      {subject.name}
-                    </span>
-                    <ChevronRight size={20} className="transition-transform duration-300 group-data-[state=open]:rotate-90" />
-                  </Accordion.Trigger>
+              {subjects.length === 0 ? (
+                <div className="py-24 flex flex-col items-center justify-center text-center border-2 border-dashed border-neutral-50 rounded-lg">
+                  <Database size={48} className="text-neutral-100 mb-6" />
+                  <h3 className="text-sm font-black uppercase mb-2">No Active Modules.</h3>
+                  <p className="text-[10px] text-neutral-400 uppercase font-bold max-w-xs leading-loose mb-8">
+                    Your current exam path is empty. Populate the Vault with syllabus context to enable agentic module generation.
+                  </p>
+                  <button
+                    onClick={() => navigate('/vault')}
+                    className="btn-minimal px-8"
+                  >
+                    Go to the Vault
+                  </button>
+                </div>
+              ) : (
+                subjects.map(subject => (
+                  <Accordion.Item key={subject.id} value={subject.name} className="border-b border-neutral-100 pb-6">
+                    <Accordion.Trigger className="w-full flex justify-between items-center py-4 group">
+                      <span className="text-xl font-black uppercase tracking-tight group-data-[state=open]:text-black text-neutral-300 transition-colors">
+                        {subject.name}
+                      </span>
+                      <ChevronRight size={20} className="transition-transform duration-300 group-data-[state=open]:rotate-90" />
+                    </Accordion.Trigger>
 
-                  <Accordion.Content className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {chapterStats.filter(cs => chapters.find(c => c.id === cs.chapter_id)?.subject_id === subject.id).map(stats => (
-                      <div key={stats.chapter_id} className="border border-neutral-100 p-6 flex flex-col hover:border-black transition-all group">
-                        <div className="flex justify-between items-start mb-6">
-                          <div className="h-16 w-16">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={[
-                                    { value: stats.solved },
-                                    { value: Math.max(0, stats.total - stats.solved) }
-                                  ]}
-                                  innerRadius={20}
-                                  outerRadius={28}
-                                  paddingAngle={0}
-                                  dataKey="value"
-                                  stroke="none"
-                                >
-                                  <Cell fill="#000" />
-                                  <Cell fill="#f0f0f0" />
-                                </Pie>
-                              </PieChart>
-                            </ResponsiveContainer>
+                    <Accordion.Content className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {chapterStats.filter(cs => chapters.find(c => c.id === cs.chapter_id)?.subject_id === subject.id).map(stats => (
+                        <div key={stats.chapter_id} className="border border-neutral-100 p-6 flex flex-col hover:border-black transition-all group">
+                          <div className="flex justify-between items-start mb-6">
+                            <div className="h-16 w-16">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={[
+                                      { value: stats.solved },
+                                      { value: Math.max(0, stats.total - stats.solved) }
+                                    ]}
+                                    innerRadius={20}
+                                    outerRadius={28}
+                                    paddingAngle={0}
+                                    dataKey="value"
+                                    stroke="none"
+                                  >
+                                    <Cell fill="#000" />
+                                    <Cell fill="#f0f0f0" />
+                                  </Pie>
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                            <Badge score={Math.round((stats.solved / (stats.total || 1)) * 100)} />
                           </div>
-                          <Badge score={Math.round((stats.solved / (stats.total || 1)) * 100)} />
-                        </div>
 
-                        <h4 className="text-sm font-black uppercase mb-2 leading-tight">{stats.name}</h4>
-                        <p className="text-[10px] text-neutral-400 uppercase font-bold mb-6">
-                          {stats.solved} / {stats.total} Questions Solved
-                        </p>
+                          <h4 className="text-sm font-black uppercase mb-2 leading-tight">{stats.name}</h4>
+                          <p className="text-[10px] text-neutral-400 uppercase font-bold mb-6">
+                            {stats.solved} / {stats.total} Questions Solved
+                          </p>
 
-                        <div className="mt-auto flex gap-2">
-                          <button
-                            onClick={() => startPractice(stats.chapter_id)}
-                            className="flex-1 bg-black text-white text-[9px] font-black uppercase py-2 flex items-center justify-center gap-2"
-                          >
-                            <Play size={10} /> Practice
-                          </button>
-                          <button
-                            onClick={() => scheduleMock(stats.chapter_id)}
-                            className="p-2 border border-neutral-100 hover:border-black transition-colors"
-                            title="Schedule Unit Mock"
-                          >
-                            <Calendar size={12} />
-                          </button>
+                          <div className="mt-auto flex gap-2">
+                            <button
+                              onClick={() => startPractice(stats.chapter_id)}
+                              className="flex-1 bg-black text-white text-[9px] font-black uppercase py-2 flex items-center justify-center gap-2"
+                            >
+                              <Play size={10} /> Practice
+                            </button>
+                            <button
+                              onClick={() => scheduleMock(stats.chapter_id)}
+                              className="p-2 border border-neutral-100 hover:border-black transition-colors"
+                              title="Schedule Unit Mock"
+                            >
+                              <Calendar size={12} />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </Accordion.Content>
-                </Accordion.Item>
-              ))}
+                      ))}
+                    </Accordion.Content>
+                  </Accordion.Item>
+                ))
+              )}
             </Accordion.Root>
           </div>
         </div>

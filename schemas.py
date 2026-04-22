@@ -106,6 +106,8 @@ class StudyPlanTaskBase(BaseModel):
     chapter_id: int
     task_type: str
     target_date: str
+    estimated_minutes: int = 60
+    concepts: Optional[str] = None
     priority: int = 1
 
 class StudyPlanTask(StudyPlanTaskBase):
@@ -120,6 +122,8 @@ class StudyTaskOutput(BaseModel):
     date: str
     chapter: str
     type: str # LEARN, PRACTICE, REVISE, MOCK
+    estimated_minutes: int
+    concepts: str # Key concepts to focus on
     priority: int
 
 class StudyPlanOutput(BaseModel):

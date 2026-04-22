@@ -3,6 +3,7 @@ import Dashboard from './pages/Dashboard';
 import Study from './pages/Study';
 import Mock from './pages/Mock';
 import MockReview from './pages/MockReview';
+import Vault from './pages/Vault';
 import Onboarding from './pages/Onboarding';
 import Auth from './pages/Auth';
 import Sidebar from './components/Sidebar';
@@ -34,6 +35,7 @@ function App() {
               <Route path="/study" element={<Study />} />
               <Route path="/mock" element={<Mock />} />
               <Route path="/mock-review" element={<MockReview />} />
+              <Route path="/vault" element={<Vault />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </main>

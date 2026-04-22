@@ -1,7 +1,10 @@
 from sqlalchemy.orm import Session
 from db import models
 from orchestrator import SignalService
+from langchain_groq import ChatGroq
+from config import settings
 import datetime
+import json
 
 class PerformanceAnalyst:
     def __init__(self, db: Session):
@@ -53,3 +56,28 @@ class PerformanceAnalyst:
                 {"chapter_id": chapter_id, "accuracy": accuracy, "total_attempts": total}
             )
             print(f"Analyst: Published WEAK_TOPIC_DETECTED for Chapter {chapter_id}")
+
+    def generate_detailed_review(self, user_id: int, report: dict):
+        """Generates a qualitative review of the mock test performance."""
+        llm = ChatGroq(temperature=0, groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
+        
+        prompt = f"""
+        Role: Performance Analyst.
+        Target: Detailed Review of Mock Test for User {user_id}.
+        
+        REPORT DATA (Chapter: {{"accuracy": %, "avg_time": seconds}}):
+        {json.dumps(report, indent=2)}
+        
+        TASK:
+        Provide a concise analysis using ONLY bullet points. Structure it as follows:
+        - OVERALL PERFORMANCE: Strongest/weakest areas.
+        - TIME MANAGEMENT: Specific bottlenecks or pacing issues.
+        - ACTION PLAN: 3 specific recommendations for the next 48 hours.
+        
+        Use NO paragraphs. Only bullet points. Keep it professional and highly specific.
+        """
+        try:
+            res = llm.invoke(prompt)
+            return res.content
+        except Exception as e:
+            return f"Review generation failed: {e}"

@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from db.database import SessionLocal, engine, Base
-from db.models import Subject, Chapter, Question
+from db.models import Subject, Chapter, Question, Exam
 
 # Initialize DB
 print("Connecting to database...")
@@ -64,13 +64,22 @@ def match_chapter(question_text, chapters, threshold=65):
 def ingest_data(subset_limit=50):
     db = SessionLocal()
     try:
-        # Seed Subjects + Chapters
+        # 1. Ensure Exam exists
+        exam_name = "JEE Main"
+        db_exam = db.query(Exam).filter(Exam.name == exam_name).first()
+        if not db_exam:
+            db_exam = Exam(name=exam_name)
+            db.add(db_exam)
+            db.commit()
+            db.refresh(db_exam)
+        
+        # 2. Seed Subjects + Chapters linked to this Exam
         subject_objs = {}
         uncategorized_map = {}
         for sub_name, ch_names in SYLLABUS.items():
-            db_sub = db.query(Subject).filter(Subject.name == sub_name).first()
+            db_sub = db.query(Subject).filter(Subject.name == sub_name, Subject.exam_id == db_exam.id).first()
             if not db_sub:
-                db_sub = Subject(name=sub_name)
+                db_sub = Subject(name=sub_name, exam_id=db_exam.id)
                 db.add(db_sub)
                 db.commit()
                 db.refresh(db_sub)
