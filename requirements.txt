@@ -8,3 +8,6 @@ requests
 langchain-groq
 pydantic-settings
 langgraph
+passlib 
+python-jose[cryptography]
+bcrypt

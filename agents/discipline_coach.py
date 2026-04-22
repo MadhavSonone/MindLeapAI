@@ -10,7 +10,7 @@ class DisciplineCoach:
         self.llm = ChatGroq(
             temperature=0.7, # A bit more creative for motivation
             groq_api_key=settings.GROQ_API_KEY, 
-            model_name="llama-3.1-70b-versatile"
+            model_name="llama-3.1-8b-instant"
         )
 
     def generate_daily_nudge(self, user_id: int):

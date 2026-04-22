@@ -16,6 +16,12 @@
     @apply bg-bg text-fg font-sans antialiased;
     overflow-x: hidden;
   }
+  .scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0; /* Critical for flex scrolling in panels */
+  padding: 2rem;
+}
 
   h1, h2, h3, h4 {
     @apply font-bold tracking-tight uppercase;

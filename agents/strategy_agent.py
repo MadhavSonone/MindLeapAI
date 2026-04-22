@@ -12,35 +12,48 @@ class StrategyAgent:
         self.llm = ChatGroq(
             temperature=0, 
             groq_api_key=settings.GROQ_API_KEY, 
-            model_name="llama-3.1-70b-versatile"
+            model_name="llama-3.1-8b-instant"
         )
 
     def generate_initial_plan(self, user_id: int):
-        """Generates a study plan based on user preferences and total syllabus."""
-        print(f"Strategy: Generating initial plan for User {user_id}...")
-        
         pref = self.db.query(models.UserPreferences).filter(models.UserPreferences.user_id == user_id).first()
         if not pref:
             print("Strategy: User preferences not found. Cannot generate plan.")
             return
 
-        chapters = self.db.query(models.Chapter).all()
-        chapter_names = [c.name for c in chapters]
+        completed_ids = json.loads(pref.completed_chapters or "[]")
+        completed_chapters = self.db.query(models.Chapter).filter(models.Chapter.id.in_(completed_ids)).all()
+        completed_names = [c.name for c in completed_chapters]
+        print("Completed chapters:", completed_names)
+        all_chapters = self.db.query(models.Chapter).all()
+        syllabus_list = "\n".join([f"- {c.name}" for c in all_chapters])
 
         prompt = f"""
-        You are a JEE Strategy Expert.
+        You are a JEE Strategy Expert. 
         User Goal Date: {pref.goal_date}
         Daily Availability: {pref.daily_availability_hours} hours
-        Syllabus Chapters: {', '.join(chapter_names)}
+        
+        USER'S CURRENT STATUS:
+        Already Completed Chapters: {", ".join(completed_names) if completed_names else "None"}
 
-        Generate a high-level study plan for the next 7 days.
-        Each day should have one or two chapters to focus on.
-        Output format should be a JSON list of tasks, e.g.,
+        AVAILABLE SYLLABUS CHAPTERS:
+        {syllabus_list}
+
+        TASK:
+        Generate a comprehensive study plan for the NEXT 7 DAYS starting from {datetime.date.today()}.
+        
+        GUIDELINES:
+        1. Mix subjects (Physics, Chemistry, Maths) across the week.
+        2. For COMPLETED chapters: Schedule 'REVISE' (quick check) or 'PRACTICE' (problem solving).
+        3. For NEW chapters: Schedule 'LEARN' (theory + basic problems).
+        4. Each day should have 1-2 tasks.
+        5. Ensure at least 2 'REVISE' sessions for completed chapters to ensure retention.
+
+        JSON FORMAT ONLY:
         [
-            {{"date": "2024-04-22", "chapter": "Kinematics", "type": "LEARN", "priority": 1}},
-            {{"date": "2024-04-23", "chapter": "Laws of Motion", "type": "PRACTICE", "priority": 1}}
+            {{"date": "YYYY-MM-DD", "chapter": "Exact Name", "type": "LEARN" | "PRACTICE" | "REVISE", "priority": 1-3}},
+            ...
         ]
-        Respond ONLY with the JSON.
         """
         
         try:
@@ -52,7 +65,9 @@ class StrategyAgent:
             
             # Save to DB
             for task in tasks:
-                db_chapter = self.db.query(models.Chapter).filter(models.Chapter.name == task.chapter).first()
+                db_chapter = self.db.query(models.Chapter).filter(
+                    models.Chapter.name.ilike(task.chapter)
+                ).first()
                 if db_chapter:
                     db_task = models.StudyPlanTask(
                         user_id=user_id,

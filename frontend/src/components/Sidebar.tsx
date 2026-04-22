@@ -1,9 +1,14 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, PenTool, LogOut, Zap } from 'lucide-react';
+import { LayoutDashboard, BookOpen, PenTool, LogOut, Zap, BarChart2 } from 'lucide-react';
 import { useUserStore } from '../store/useStore';
 
 const Sidebar = () => {
-  const { userName } = useUserStore();
+  const { userName, logout } = useUserStore();
+
+  const handleSignOut = () => {
+    logout();
+    window.location.href = '/';
+  };
 
   return (
     <aside className="w-64 border-r border-neutral-100 flex flex-col h-full bg-white">
@@ -12,33 +17,40 @@ const Sidebar = () => {
           <Zap size={16} fill="black" />
           <h1 className="text-lg font-black tracking-tighter uppercase">MindLeap</h1>
         </div>
-        <p className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">Agentic JEE Prep</p>
+        <p className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">Exam Prep</p>
       </div>
 
       <nav className="flex-1 px-8 py-4">
         <div className="mb-10">
-          <h3 className="text-[9px] font-black uppercase text-neutral-300 tracking-[0.2em] mb-6">Menu</h3>
+          <h3 className="text-[9px] font-black uppercase text-neutral-300 tracking-[0.2em] mb-6">Tabs</h3>
           <div className="space-y-4">
-            <NavLink 
-              to="/dashboard" 
+            <NavLink
+              to="/dashboard"
               className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''}`}
             >
               <LayoutDashboard size={14} />
               Dashboard
             </NavLink>
-            <NavLink 
-              to="/study" 
+            <NavLink
+              to="/study"
               className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''}`}
             >
               <BookOpen size={14} />
-              Study Module
+              Modules
             </NavLink>
-            <NavLink 
-              to="/mock" 
+            <NavLink
+              to="/mock"
               className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''}`}
             >
               <PenTool size={14} />
-              Mock Simulation
+              Mock Test
+            </NavLink>
+            <NavLink
+              to="/mock-review"
+              className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''}`}
+            >
+              <BarChart2 size={14} />
+              Previous Attempts
             </NavLink>
           </div>
         </div>
@@ -54,7 +66,10 @@ const Sidebar = () => {
             <p className="text-[9px] text-neutral-400 uppercase">Aspirant_Core</p>
           </div>
         </div>
-        <button className="text-[9px] font-black uppercase text-neutral-400 hover:text-black flex items-center gap-2">
+        <button 
+          onClick={handleSignOut}
+          className="text-[9px] font-black uppercase text-neutral-400 hover:text-black flex items-center gap-2"
+        >
           <LogOut size={12} />
           Sign Out
         </button>

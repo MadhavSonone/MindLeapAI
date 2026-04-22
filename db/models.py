@@ -1,6 +1,15 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from .database import Base
+import datetime
+
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    created_at = Column(String, default=lambda: datetime.datetime.now().isoformat())
 
 class Subject(Base):
     __tablename__ = "subjects"
@@ -27,19 +36,10 @@ class Question(Base):
     content = Column(String)
     source = Column(String, nullable=True) # e.g. Year, Paper
     chapter_id = Column(Integer, ForeignKey("chapters.id"), nullable=True)
+    options_json = Column(String, nullable=True) # JSON list: ["Option 1", "Option 2", ...]
+    correct_answer = Column(String, nullable=True) # The exact content of the correct option
 
     chapter = relationship("Chapter", back_populates="questions")
-    options = relationship("Option", back_populates="question")
-
-class Option(Base):
-    __tablename__ = "options"
-
-    id = Column(Integer, primary_key=True, index=True)
-    content = Column(String)
-    is_correct = Column(Boolean, default=False)
-    question_id = Column(Integer, ForeignKey("questions.id"))
-
-    question = relationship("Question", back_populates="options")
 
 class UserProgress(Base):
     __tablename__ = "user_progress"
@@ -60,6 +60,7 @@ class UserPreferences(Base):
     target_exam = Column(String, default="JEE Main")
     goal_date = Column(String) # YYYY-MM-DD
     daily_availability_hours = Column(Integer, default=4)
+    completed_chapters = Column(String, nullable=True) # JSON list of chapter IDs
     strengths_summary = Column(String, nullable=True) # JSON or summary text
 
 class ChapterMastery(Base):
@@ -102,4 +103,15 @@ class AgentInteraction(Base):
     agent_role = Column(String) # Tutor, Coach
     input_query = Column(String)
     output_response = Column(String)
+    timestamp = Column(String)
+
+class MockAttempt(Base):
+    __tablename__ = "mock_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    score = Column(Integer)
+    total_questions = Column(Integer)
+    report_json = Column(String) # JSON blob: { "chapter_name": accuracy, ... }
+    answers_json = Column(String) # JSON blob: { "question_id": "answer", ... }
     timestamp = Column(String)

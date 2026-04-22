@@ -10,7 +10,7 @@ class TutorAgent:
         self.llm = ChatGroq(
             temperature=0, 
             groq_api_key=settings.GROQ_API_KEY, 
-            model_name="llama-3.1-70b-versatile"
+            model_name="llama-3.1-8b-instant"
         )
 
     def explain_question(self, question_id: int, user_id: int, adaptive_level: str = "beginner"):

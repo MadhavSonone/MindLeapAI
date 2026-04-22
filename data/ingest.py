@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from db.database import SessionLocal, engine, Base
-from db.models import Subject, Chapter, Question, Option
+from db.models import Subject, Chapter, Question
 
 # Initialize DB
 print("Connecting to database...")
@@ -46,151 +46,83 @@ SYLLABUS = {
     ]
 }
 
-# -------------------------
-# 🔧 Helpers
-# -------------------------
-
 def clean_text(text: str) -> str:
-    text = text.lower()
+    text = str(text).lower()
     text = re.sub(r'[^a-z0-9\s]', ' ', text)
     return text
-
 
 def match_chapter(question_text, chapters, threshold=65):
     if not chapters:
         return None
-
     cleaned_q = clean_text(question_text)
     chapter_names = [clean_text(ch.name) for ch in chapters]
-
-    match, score, idx = process.extractOne(
-        cleaned_q,
-        chapter_names,
-        scorer=fuzz.partial_ratio
-    )
-
+    match, score, idx = process.extractOne(cleaned_q, chapter_names, scorer=fuzz.partial_ratio)
     if score >= threshold:
         return chapters[idx]
-
     return None
-
-
-# -------------------------
-# 🚀 Main ingestion
-# -------------------------
 
 def ingest_data(subset_limit=50):
     db = SessionLocal()
-
     try:
-        # 1. Seed Subjects + Chapters (+ Uncategorized)
+        # Seed Subjects + Chapters
         subject_objs = {}
         uncategorized_map = {}
-
-        for sub_name, chapters in SYLLABUS.items():
+        for sub_name, ch_names in SYLLABUS.items():
             db_sub = db.query(Subject).filter(Subject.name == sub_name).first()
             if not db_sub:
                 db_sub = Subject(name=sub_name)
                 db.add(db_sub)
                 db.commit()
                 db.refresh(db_sub)
-
             subject_objs[sub_name] = db_sub
-
-            # create chapters
-            for ch_name in chapters:
-                db_ch = db.query(Chapter).filter(
-                    Chapter.name == ch_name,
-                    Chapter.subject_id == db_sub.id
-                ).first()
-
+            for ch_name in ch_names:
+                db_ch = db.query(Chapter).filter(Chapter.name == ch_name, Chapter.subject_id == db_sub.id).first()
                 if not db_ch:
                     db_ch = Chapter(name=ch_name, subject_id=db_sub.id)
                     db.add(db_ch)
-
-            # add fallback chapter
-            uncategorized = db.query(Chapter).filter(
-                Chapter.name == "Uncategorized",
-                Chapter.subject_id == db_sub.id
-            ).first()
-
+            uncategorized = db.query(Chapter).filter(Chapter.name == "Uncategorized", Chapter.subject_id == db_sub.id).first()
             if not uncategorized:
-                uncategorized = Chapter(
-                    name="Uncategorized",
-                    subject_id=db_sub.id
-                )
+                uncategorized = Chapter(name="Uncategorized", subject_id=db_sub.id)
                 db.add(uncategorized)
-
             db.commit()
             uncategorized_map[sub_name] = uncategorized
 
-        # 2. Load dataset
+        # Load dataset
         json_path = os.path.join("data", "jee.json")
-
         if not os.path.exists(json_path):
             print(f"Error: {json_path} not found.")
             return
-
         with open(json_path, "r") as f:
             data = json.load(f)
 
-        # 3. Insert questions
         for sub_name in ["physics", "chemistry", "maths"]:
-            if sub_name not in data:
-                continue
-
+            if sub_name not in data: continue
             db_sub = subject_objs[sub_name]
-            chapters = db.query(Chapter).filter(
-                Chapter.subject_id == db_sub.id
-            ).all()
-
+            chapters = db.query(Chapter).filter(Chapter.subject_id == db_sub.id).all()
             fallback_chapter = uncategorized_map[sub_name]
-
             questions = data[sub_name][:subset_limit]
             print(f"Loading {len(questions)} questions for {sub_name}...")
-
             for q_data in questions:
                 content = q_data.get("question", "No question content")
-                options_data = q_data.get("options", [])
-
-                # 🔍 Fuzzy match
-                chapter = match_chapter(content, chapters)
-
-                if not chapter:
-                    chapter = fallback_chapter
-
-                # Create question
+                options = [str(o) for o in q_data.get("options", []) if str(o).lower() != "nan"]
+                if not options: continue
+                
+                chapter = match_chapter(content, chapters) or fallback_chapter
                 db_q = Question(
                     content=content,
                     source="JEE Dataset",
-                    chapter_id=chapter.id
+                    chapter_id=chapter.id,
+                    options_json=json.dumps(options),
+                    correct_answer=options[0] # Defaulting to first option as correct for demo
                 )
-
                 db.add(db_q)
-                db.flush()
-
-                # Add options
-                for opt_content in options_data:
-                    if str(opt_content).lower() == "nan":
-                        continue
-
-                    db_opt = Option(
-                        content=str(opt_content),
-                        is_correct=False,
-                        question_id=db_q.id
-                    )
-                    db.add(db_opt)
-
             db.commit()
             print(f"Finished loading {sub_name}")
-
     except Exception as e:
         print(f"An error occurred: {e}")
         db.rollback()
-
     finally:
         db.close()
 
-
 if __name__ == "__main__":
-    ingest_data(50)
+    ingest_data(100)

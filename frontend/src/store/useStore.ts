@@ -8,11 +8,15 @@ interface UserState {
   goalDate: string;
   dailyHours: number;
   isOnboarded: boolean;
-  
+  token: string;
+
   setUserId: (id: number) => void;
   setUserName: (name: string) => void;
+  setToken: (token: string) => void;
+  setIsOnboarded: (val: boolean) => void;
   setOnboardingData: (data: { targetExam: string; goalDate: string; dailyHours: number }) => void;
   completeOnboarding: () => void;
+  logout: () => void;
 }
 
 export const useUserStore = create<UserState>()(
@@ -24,11 +28,23 @@ export const useUserStore = create<UserState>()(
       goalDate: "",
       dailyHours: 0,
       isOnboarded: false,
+      token: "",
 
       setUserId: (id) => set({ userId: id }),
       setUserName: (name) => set({ userName: name }),
+      setToken: (token) => set({ token }),
+      setIsOnboarded: (val) => set({ isOnboarded: val }),
       setOnboardingData: (data) => set({ ...data }),
       completeOnboarding: () => set({ isOnboarded: true }),
+      logout: () => set({ 
+        userId: 0,
+        userName: "Aspirant", 
+        targetExam: "", 
+        goalDate: "", 
+        dailyHours: 0, 
+        isOnboarded: false,
+        token: "" 
+      }),
     }),
     {
       name: 'mindleap-user-storage',
@@ -41,30 +57,47 @@ interface MockTestState {
   timeLeft: number; // in seconds
   currentQuestionIndex: number;
   answers: Record<number, string>;
-  
-  startTest: (durationMinutes: number) => void;
+  mockType: 'full' | 'unit';
+  chapterId?: number;
+  questions: any[];
+
+  startTest: (durationMinutes: number, type?: 'full' | 'unit', chapterId?: number) => void;
   endTest: () => void;
   setAnswer: (questionId: number, answer: string) => void;
   setIndex: (index: number) => void;
+  setQuestions: (questions: any[]) => void;
   decrementTime: () => void;
 }
 
-export const useMockStore = create<MockTestState>((set) => ({
-  isActive: false,
-  timeLeft: 0,
-  currentQuestionIndex: 0,
-  answers: {},
+export const useMockStore = create<MockTestState>()(
+  persist(
+    (set) => ({
+      isActive: false,
+      timeLeft: 0,
+      currentQuestionIndex: 0,
+      answers: {},
+      mockType: 'full',
+      questions: [],
 
-  startTest: (durationMinutes) => set({ 
-    isActive: true, 
-    timeLeft: durationMinutes * 60,
-    currentQuestionIndex: 0,
-    answers: {}
-  }),
-  endTest: () => set({ isActive: false }),
-  setAnswer: (questionId, answer) => set((state) => ({
-    answers: { ...state.answers, [questionId]: answer }
-  })),
-  setIndex: (index) => set({ currentQuestionIndex: index }),
-  decrementTime: () => set((state) => ({ timeLeft: Math.max(0, state.timeLeft - 1) })),
-}));
+      startTest: (durationMinutes, type = 'full', chapterId) => set({
+        isActive: true,
+        timeLeft: durationMinutes * 60,
+        currentQuestionIndex: 0,
+        answers: {},
+        mockType: type,
+        chapterId: chapterId,
+        questions: []
+      }),
+      endTest: () => set({ isActive: false, questions: [] }),
+      setAnswer: (questionId, answer) => set((state) => ({
+        answers: { ...state.answers, [questionId]: answer }
+      })),
+      setIndex: (index) => set({ currentQuestionIndex: index }),
+      setQuestions: (qs) => set({ questions: qs }),
+      decrementTime: () => set((state) => ({ timeLeft: Math.max(0, state.timeLeft - 1) })),
+    }),
+    {
+      name: 'mindleap-mock-storage',
+    }
+  )
+);

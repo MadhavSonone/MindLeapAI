@@ -11,7 +11,7 @@ class PracticeAgent:
         self.llm = ChatGroq(
             temperature=0, 
             groq_api_key=settings.GROQ_API_KEY, 
-            model_name="llama-3.1-70b-versatile"
+            model_name="llama-3.1-8b-instant"
         )
 
     def generate_targeted_mock(self, user_id: int, num_questions: int = 5):
